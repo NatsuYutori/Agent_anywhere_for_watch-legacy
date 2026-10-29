@@ -1,0 +1,222 @@
+<p align="center">
+  <a href="https://www.agents-anywhere.com"><img src="docs/images/readme-hero-zh.webp" alt="Agents Anywhere：跨设备的开源 Agent 工作台。支持 Codex、Claude Code 和 DeepSeek Harness，更多 Agent 即将支持。" width="100%"></a>
+</p>
+
+<p align="center">
+  <strong>连接工作设备，在桌面、手机和 Web 管理 AI Agent。</strong><br>
+  开源 · 多种 Agent · 会话与工作区 · 自托管
+</p>
+
+<p align="center">
+  <a href="https://www.agents-anywhere.com">官网</a> ·
+  <a href="#下载与入口">下载客户端</a> ·
+  <a href="https://web.agents-anywhere.com">打开 Web</a> ·
+  <a href="docs/README.md">使用文档</a> ·
+  <a href="README.en.md">English</a>
+</p>
+
+<p align="center">
+  <a href="docs/releases/2.0.0.md"><img src="https://img.shields.io/badge/release-2.0.0-222222?style=flat" alt="Release 2.0.0"></a>
+  <a href="#开源许可"><img src="https://img.shields.io/badge/license-MIT-222222?style=flat" alt="MIT"></a>
+  <a href="docker/README.md"><img src="https://img.shields.io/badge/self--hosted-Docker-222222?style=flat" alt="Self-host with Docker"></a>
+</p>
+
+**Agents Anywhere** 是跨设备的开源 Agent 工作台。连接运行 **Codex、Claude Code 或 DeepSeek Harness** 的工作设备，在桌面、手机和 Web 查看会话、回复请求、管理文件与终端。Agent 在连接的工作设备上执行任务。
+
+> ### 关于本仓库
+>
+> 这是 [anywhere-labs/Agents-Anywhere](https://github.com/anywhere-labs/Agents-Anywhere) 的分支。上游能力
+> （手机 App、桌面端、Web、服务端、Connector）全部保留，**新增了一个面向圆形屏智能手表的遥控端**
+> `android/watch/`，并针对 466×466 圆屏重做了整套布局与输入。上游与本仓库均以 [MIT](LICENSE) 许可发布，
+> 上游署名保留在 [LICENSE](LICENSE) 与各模块原文档中。
+
+## 手表端（本分支新增）
+
+手表**不执行** Agent 任务，只做遥控器：Agent 仍然跑在装了 Connector 的电脑或手机上，手表负责看会话、
+回消息、审批请求、切换模型。这个分工是上游本身的设计，手表版只是把「控制」这一半做成适合圆屏的四个界面。
+
+<p align="center">
+  <img src="android/watch/mockups/ui-preview-v2.png" alt="手表端界面示意：对话、工作区、操作、账号" width="70%">
+  <br>
+  <sub>界面示意图（非真机截图）</sub>
+</p>
+
+**目标设备**：OPPO Watch X 系列等 466×466 圆形屏、Android 11（API 30）、`armeabi-v7a`；`minSdk 26`，`targetSdk 36`。
+
+| 页面 | 内容 |
+| --- | --- |
+| **对话**（启动页） | 当前会话的时间线 + 底部一行「输入框 + 发送」；回合运行中整行变成「终止」 |
+| **工作区** | 按工作目录分组的会话列表，**多设备账号可按设备过滤**，并有「＋ 新会话」入口 |
+| **操作** | 接管/释放、切换模型、切换权限、待审批（含需要填写的审批表单）、用量统计 |
+| **账号** | 头像与昵称、邮箱绑定、服务器地址、退出登录 |
+
+相对上游手机端，手表端需要单独处理的事情：
+
+- **圆屏几何**：所有控件都要落在内切圆里，宽度按行所在高度反算（`WatchRound.maxRowWidth`），正文宽度 165dp。
+- **表冠**：只认「一格」，一格滚动当前页 30dp，不翻页；一批合成一次线性滑动。翻页交给手指滑动。
+- **实时输出**：接上游 `feature/realtime` 的 WebSocket，事件逐条归约进会话状态；轮询保留为快照与兜底。
+- **对话状态**：右上角一个词就是状态出口（实时／重连中／运行失败／已阻塞／设备离线），运行时的 `notification`
+  通知（如额度超限）以细带显示在时间线之上。
+- **用量**：从事件里解析轮数、步数、tokens，并区分「运行时没上报」与「真的是 0」。
+- **多设备**：一个账号挂多台工作设备时，工作区页可按设备过滤同名目录，新建会话也指定设备。
+- **新会话**：设备／运行时／目录三个胶囊预选好，只输入第一句话即可创建。
+
+详细的协议核对、圆屏常数表、表冠标定方法、测试覆盖与已知限制见 **[android/watch/README.zh-CN.md](android/watch/README.zh-CN.md)**。
+
+### 构建与安装
+
+```bash
+cd android
+
+# 手表端正式包（需要 android/watch/keystore.properties，见手表文档的签名一节）
+./gradlew :watch:assembleRelease
+
+# 单元测试：圆屏几何、表冠计数、权限翻译、用量解析、审批表单、鉴权报文
+./gradlew :watch:testDebugUnitTest
+
+cd ..
+adb install -r android/watch/build/outputs/apk/release/watch-release.apk
+```
+
+手机上安装上游的手机端 APK，电脑上运行 Connector，手表登录同一个账号即可接管会话。
+
+## 下载与入口
+
+在工作设备上安装桌面客户端，再通过手机、平板或 Web 访问。Linux 和无图形界面的服务器可使用 Connector CLI 接入。各客户端均可连接 Cloud 或自托管服务。
+
+**直接使用 Web：** 打开 [web.agents-anywhere.com](https://web.agents-anywhere.com)，注册或登录，开始使用。服务器位于中国大陆，在中国大陆使用可获得最佳体验。
+
+| 平台 | 获取客户端 |
+| --- | --- |
+| **macOS** | [Universal DMG · 2.0.0](https://modelscope.cn/models/t4wefan/deepseek-harness-desktop/resolve/master/Agents%20Anywhere-2.0.0-universal.dmg) |
+| **Windows** | [x64 安装包 · 2.0.0](https://modelscope.cn/models/t4wefan/deepseek-harness-desktop/resolve/master/Agents%20Anywhere%20Setup%202.0.0-x64.exe) |
+| **iOS / iPadOS** | [加入 TestFlight](https://testflight.apple.com/join/GKGaut99) |
+| **Android** | [APK · 2.0.0](https://modelscope.cn/models/t4wefan/deepseek-harness-desktop/resolve/master/agents-anywhere-2.0.0-release.apk) |
+| **Web** | [立即打开 Web](https://web.agents-anywhere.com) |
+| **Linux / headless** | [运行 Connector CLI](connector/README.md) |
+
+更多平台说明见[官网下载页](https://www.agents-anywhere.com/download)。旧版部署升级前请阅读[升级指南](docs/upgrading.md)。
+
+<details>
+<summary>平台要求、安装包与更新说明</summary>
+
+- macOS：Apple Silicon / Intel 通用，已签名、公证。
+- Windows：x64 桌面工作台，含本机 Connector；当前安装包未做代码签名。
+- Android：Android 8.0 及以上。
+- iOS / iPadOS：通过 TestFlight 安装测试版，以邀请页显示的可用状态为准。
+- Linux / headless：运行 Connector 接入工作设备，通过其他客户端操作。
+
+macOS、Windows 和 Android 的下载文件均为 **Agents Anywhere** 安装包，托管在 ModelScope 的 `t4wefan/deepseek-harness-desktop` 仓库中。历史 GitHub Releases 中的 0.1.x 安装包不作为 2.0 下载入口。当前发布客户端的应用内更新地址仍是占位配置，请通过上面的链接手动下载。
+
+`main` 是当前开发主线。源码中的新修复不一定已进入上面的 2.0.0 安装包；产品、Connector 包和数据库 schema 的版本分别管理。发布范围见 [2.0.0 发布说明](docs/releases/2.0.0.md)。
+
+</details>
+
+<details open>
+<summary>❤️ 赞助商</summary>
+
+| Logo | 简介 |
+| --- | --- |
+| <a href="https://dshdesktop.cn/sponsors/wuying"><img src="docs/images/sponsors/wuying-cloud-computer-logo.png" alt="阿里云无影云电脑" width="96"></a> | [**阿里云 · 无影云电脑**](https://dshdesktop.cn/sponsors/wuying)<br>感谢 **阿里云** 无影云电脑赞助本项目！无影云电脑个人版面向个人用户提供云上电脑服务，将计算、存储和桌面环境放在云端，支持在多类终端上接入使用，并可按需选择不同规格，适合远程办公、学习、开发和轻量创作等场景。<br><br>[**打开微信注册 →**](https://dshdesktop.cn/sponsors/wuying) |
+| <a href="https://88api.ai/sign-up?aff=vQMT"><img src="docs/images/sponsors/88api-logo.png" alt="88API" width="120"></a> | [**88API**](https://88api.ai/sign-up?aff=vQMT)<br>88API 是一站式多模型 API 聚合平台，平台由海外企业运营，稳定高效支持开票。平台提供 DeepSeek 官转和开源渠道，价格低至 5 折，完美适配 DSH Desktop 项目。一个 API Key 即可统一接入海内外多种模型，覆盖文本对话、图片、音频、音乐和视频生成接口，适用于 AI 编程、Agent 自动化、内容创作及应用开发。<br><br>[**立即注册 →**](https://88api.ai/sign-up?aff=vQMT) |
+
+</details>
+
+## Agent 与工作区管理
+
+<p align="center">
+  <img src="docs/images/readme-workbench.webp" alt="Windows 桌面工作台：左侧管理设备、项目和会话，右侧查看 Agent 的任务结果。" width="100%">
+</p>
+
+<a id="可以做什么"></a>
+
+| 你想做的事 | 在 Agents Anywhere 中 |
+| --- | --- |
+| **管理项目与会话** | 在设备、项目和会话之间切换，通过时间线（Timeline）查看运行进度。 |
+| **审批操作与回复请求** | 响应工具审批和输入请求；按 Runtime 能力打断或继续任务。 |
+| **查看文件与使用终端** | 浏览与预览文件、上传下载附件，打开远程 shell 和交互式终端。 |
+| **配置 Agent** | 配置 Codex、Claude Code 和 DSH；根据对应 Runtime 支持的能力选择模型、权限与操作。 |
+
+Runtime 是工作设备上运行和连接 Agent 的组件。模型账号和调用费用遵循所使用 Agent 的规则。各 Runtime 的能力存在差异，具体操作以客户端显示为准。[DSH 接入说明 →](dsh-bridge-next/README.md)
+
+## 桌面、移动端与 Web
+
+<p align="center">
+  <img src="docs/images/readme-mobile.webp" alt="iPhone、iPad 和 Android 的真实客户端截图：查看会话、继续对话，以及回复 Agent 的输入请求。" width="100%">
+</p>
+
+用手机查看进展、回复 Agent，在平板上打开工作区，回到电脑后继续处理。同一服务、同一账号下，自己的设备和会话可以从不同客户端访问。
+
+**手机负责控制，工作设备负责执行。** 远程使用时，工作设备需要保持开机、联网，并让 Connector 与对应 Runtime 正常运行。上图 iPad 展示了回复 Agent 输入请求的界面。
+
+## 首次使用
+
+1. **登录服务。** 安装客户端或打开 Web，登录 Cloud，或填写自托管服务地址。
+2. **连接工作设备。** Desktop 集成本机 Connector；服务器与无图形环境使用 [Connector CLI](connector/README.md)。
+3. **准备 Agent 和项目。** 在工作设备上配置 Runtime、账号与工作目录，创建或打开会话。
+4. **从其他设备访问。** 在手机、平板或另一台电脑登录同一服务和账号，访问自己的设备与任务。
+
+详细配对步骤、登录排查和后台运行说明见[安装与首次使用](docs/getting-started.md)。
+
+## 执行位置与自托管
+
+Agent 使用 Connector 所在机器的工作区与权限。可以连接 Cloud，也可以在自己的服务器上部署 Agents Anywhere 服务。
+
+```mermaid
+flowchart LR
+    Clients["桌面 · 手机 · Web"] <-->|"访问与控制"| Server["Agents Anywhere Server"]
+    Server <-->|"Connector RPC"| Connector["工作设备上的 Connector"]
+    Connector <--> Agents["Codex · Claude Code · DSH"]
+    Connector <--> Workspace["工作区 · 文件 · 终端"]
+```
+
+会话内容、Timeline 和上传附件等数据会按功能经过或存储在 Server。自托管时，这些服务端数据由你部署的实例处理。
+
+<a id="自托管快速开始"></a>
+
+### 使用 Docker 部署
+
+克隆仓库后，在根目录运行以下命令，先替换示例密码和密钥：
+
+```bash
+POSTGRES_PASSWORD=replace-with-a-strong-password \
+AGENT_SERVER_SECRET=replace-with-a-long-random-secret \
+docker compose -f docker/docker-compose.postgres.yml up --build
+```
+
+打开 `http://127.0.0.1:5174`，从 Server 日志取得 setup token，完成首位管理员设置。Compose 包含 PostgreSQL、Redis、迁移任务以及托管 Web 的 Server。
+
+[完整部署步骤](docker/README.md) · [备份与升级](docs/upgrading.md) · [Server 文档](server/README.md)
+
+<a id="架构与源码"></a>
+
+## 开发与贡献
+
+开发环境使用 **Python 3.12+ / uv / Node.js 22 / Corepack + Yarn**。从[开发指南](docs/development.md)开始，查看源码运行方式与 headless 检查。
+
+| 想了解什么 | 从这里开始 |
+| --- | --- |
+| 整体架构与 API | [Server 架构](docs/server-architecture.md) · [API 文档](docs/api/README.md) |
+| Agent 接入与本机执行 | [Connector](connector/README.md) · [Runtime 协议](docs/runtime-protocol/README.md) |
+| Web 与桌面客户端 | [Web 源码](web-next/) · [Desktop Workbench](desktop-workbench/README.md) |
+| 原生移动客户端 | [Android](android/README.md) · [iOS 源码](ios/) |
+| DSH 集成 | [DSH Bridge Next](dsh-bridge-next/README.md) |
+| 更多文档 | [文档目录](docs/README.md) · [协议契约](contracts/) |
+
+欢迎通过 [Issues](https://github.com/anywhere-labs/Agents-Anywhere/issues) 反馈问题，或通过 [Pull Requests](https://github.com/anywhere-labs/Agents-Anywhere/pulls) 参与改进。报告问题时，请附上客户端版本、系统、Runtime 类型和复现步骤，并移除日志中的凭据。
+
+<a id="申请内测与联系方式"></a>
+
+## 交流与反馈
+
+欢迎加入社区，分享使用体验、反馈问题或参与开发。扫码加入微信群或 QQ 群参与交流。自托管实例的账号由自己的管理员管理。
+
+| 微信群 | QQ 群 |
+| --- | --- |
+| <img src="docs/contact/wechat-beta.png" alt="微信群二维码" width="160"> | <img src="docs/contact/qq-beta.png" alt="QQ 群二维码" width="160"> |
+
+## 开源许可
+
+MIT，全文见 [LICENSE](LICENSE)。上游版权归 Agents Anywhere Contributors，本分支的手表端代码
+（`android/watch/`）由 NatsuYutori 维护。README 中的产品截图与品牌素材说明见
+[图片来源与复现方式](docs/readme-artwork/README.md)。
